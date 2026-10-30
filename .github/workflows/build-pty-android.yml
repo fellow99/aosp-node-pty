@@ -100,7 +100,13 @@ jobs:
           curl -fsSL --retry 3 -o "$archive" "$base/$archive"
           curl -fsSL --retry 3 -o "$archive.sha256" "$base/$archive.sha256"
           echo "--- runtime 资产 sha256 校验 ---"
-          (cd "$(pwd)" && sha256sum -c "$archive.sha256")
+          # runtime 的 .sha256 文件名字段可能带 GNU binary 标记 '*' 且紧贴名，
+          # 不能直接 sha256sum -c（会把 '*' 当文件名一部分）；取 hash 自行比对。
+          want="$(awk '{print $1}' "$archive.sha256")"
+          got="$(sha256sum "$archive" | awk '{print $1}')"
+          echo "want=$want"
+          echo "got =$got"
+          test "$want" = "$got"
           mkdir -p .dist/libnode
           tar -xzf "$archive" -C .dist/libnode
           LIBNODE="$(find .dist/libnode -name libnode.so -path '*arm64-v8a*' | head -1)"
