@@ -89,15 +89,18 @@ jobs:
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$NDK_VERSION"
 
       - name: Fetch paired libnode.so from aosp-node-runtime release (link-time only)
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           tag="v${NODE_VERSION}"
+          base="https://github.com/${RUNTIME_REPO}/releases/download/${tag}"
           archive="node-v${NODE_VERSION}-android-arm64-v8a.tar.gz"
-          echo "下载配对运行时资产：${RUNTIME_REPO} ${tag} ${archive}"
-          # 取不到 / 版本不存在即失败：绝不允许 against 错误引擎版本编出 pty。
-          gh release download "$tag" --repo "$RUNTIME_REPO" --pattern "$archive" --clobber
+          echo "下载配对运行时资产（公开 Release，匿名 curl）：${RUNTIME_REPO} ${tag} ${archive}"
+          # aosp-node-runtime 为 public：直接走 browser_download_url，无需跨仓 token。
+          # 取不到（含 404）即失败：绝不允许 against 错误引擎版本编出 pty。
+          curl -fsSL --retry 3 -o "$archive" "$base/$archive"
+          curl -fsSL --retry 3 -o "$archive.sha256" "$base/$archive.sha256"
+          echo "--- runtime 资产 sha256 校验 ---"
+          (cd "$(pwd)" && sha256sum -c "$archive.sha256")
           mkdir -p .dist/libnode
           tar -xzf "$archive" -C .dist/libnode
           LIBNODE="$(find .dist/libnode -name libnode.so -path '*arm64-v8a*' | head -1)"
