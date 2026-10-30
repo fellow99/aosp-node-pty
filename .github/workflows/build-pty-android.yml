@@ -3,8 +3,8 @@ name: Build node-pty for Android
 on:
   push:
     tags:
-      - "v[0-9]+.[0-9]+.[0-9]+"
-      - "v[0-9]+.[0-9]+.[0-9]+-*"
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-*'
   workflow_dispatch:
     inputs:
       node_version:
@@ -36,14 +36,13 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
-      NODE_VERSION: ${{ steps.ver.outputs.node }}
-      NODE_PTY_VERSION: ${{ steps.ver.outputs.pty }}
-      ANDROID_API: ${{ steps.ver.outputs.api }}
       NDK_VERSION: 28.2.13676358
       RUNTIME_REPO: fellow99/aosp-node-runtime
     steps:
       - uses: actions/checkout@v4
 
+      # 从 tag 名（push tag）或 dispatch 输入解析版本，并导出到 job 环境供后续 step 使用。
+      # 不能在 job 级 env 里引用 steps.*.outputs（该表达式在 step 存在前求值会致工作流加载失败）。
       - name: Resolve version from tag or dispatch inputs
         id: ver
         env:
@@ -65,10 +64,10 @@ jobs:
             pre="${INPUT_PRE:-false}"
           fi
           echo "node=$node"; echo "pty=$pty"; echo "api=$api"; echo "pre=$pre"
-          echo "node=$node" >> "$GITHUB_OUTPUT"
-          echo "pty=$pty"   >> "$GITHUB_OUTPUT"
-          echo "api=$api"   >> "$GITHUB_OUTPUT"
-          echo "pre=$pre"   >> "$GITHUB_OUTPUT"
+          echo "node=$node"  >> "$GITHUB_ENV"
+          echo "pty=$pty"    >> "$GITHUB_ENV"
+          echo "api=$api"    >> "$GITHUB_ENV"
+          echo "pre=$pre"    >> "$GITHUB_ENV"
 
       - name: Install host dependencies
         run: |
@@ -174,14 +173,14 @@ jobs:
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-          PRERELEASE: ${{ steps.ver.outputs.pre }}
+          PRE: ${{ env.pre }}
         run: |
           archive="node-pty-v${NODE_VERSION}-android-arm64-v8a.tar.gz"
           notes="Cross-compiled, stripped node-pty native addon (libpty_node.so) for Android arm64-v8a (API ${ANDROID_API}). Paired version-for-version with aosp-node-runtime v${NODE_VERSION} (NODE_MODULE_VERSION must match). DT_NEEDED libnode.so; the engine is link-time only and is NOT bundled — provide io.github.fellow99:node-runtime:${NODE_VERSION} at runtime. Upstream node-pty ${NODE_PTY_VERSION} source unmodified; built with NDK ${NDK_VERSION}."
-          preflag=(); [ "$PRERELEASE" = "true" ] && preflag=(--prerelease)
+          preflag=(); [ "$PRE" = "true" ] && preflag=(--prerelease)
           if gh release view "v${NODE_VERSION}" >/dev/null 2>&1; then
             gh release upload "v${NODE_VERSION}" "$archive" "$archive.sha256" --clobber
-            if [ "$PRERELEASE" = "true" ]; then
+            if [ "$PRE" = "true" ]; then
               gh release edit "v${NODE_VERSION}" --target "$GITHUB_SHA" --prerelease
             else
               gh release edit "v${NODE_VERSION}" --target "$GITHUB_SHA" --prerelease=false
