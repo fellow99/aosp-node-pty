@@ -1,0 +1,166 @@
+name: Build node-pty for Android
+
+on:
+  workflow_dispatch:
+    inputs:
+      node_version:
+        description: "Paired Node.js / runtime version (e.g. 24.22.1)"
+        required: true
+        default: "24.22.1"
+        type: string
+      node_pty_version:
+        description: "Upstream node-pty npm version (source unmodified)"
+        required: true
+        default: "1.1.0"
+        type: string
+      android_api:
+        description: "Android API level"
+        required: true
+        default: "24"
+        type: string
+      prerelease:
+        description: "Publish the GitHub Release as a prerelease"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  build-arm64-v8a:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      NODE_VERSION: ${{ inputs.node_version || '24.22.1' }}
+      NODE_PTY_VERSION: ${{ inputs.node_pty_version || '1.1.0' }}
+      ANDROID_API: ${{ inputs.android_api || '24' }}
+      NDK_VERSION: 28.2.13676358
+      RUNTIME_REPO: fellow99/aosp-node-runtime
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install host dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl file tar xz-utils binutils
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Android NDK
+        run: |
+          mkdir -p "$ANDROID_HOME/cmdline-tools"
+          curl -fsSL https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o /tmp/clt.zip
+          unzip -q /tmp/clt.zip -d "$ANDROID_HOME/cmdline-tools"
+          mv "$ANDROID_HOME/cmdline-tools/cmdline-tools" "$ANDROID_HOME/cmdline-tools/latest"
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$NDK_VERSION"
+
+      - name: Fetch paired libnode.so from aosp-node-runtime release (link-time only)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="v${NODE_VERSION}"
+          archive="node-v${NODE_VERSION}-android-arm64-v8a.tar.gz"
+          echo "下载配对运行时资产：${RUNTIME_REPO} ${tag} ${archive}"
+          # 取不到 / 版本不存在即失败：绝不允许 against 错误引擎版本编出 pty。
+          gh release download "$tag" --repo "$RUNTIME_REPO" --pattern "$archive" --clobber
+          mkdir -p .dist/libnode
+          tar -xzf "$archive" -C .dist/libnode
+          LIBNODE="$(find .dist/libnode -name libnode.so -path '*arm64-v8a*' | head -1)"
+          test -n "$LIBNODE" -a -f "$LIBNODE"
+          # 必须是 AArch64 共享库且带 SONAME libnode.so。
+          file "$LIBNODE"
+          readelf -h "$LIBNODE" | grep -E "Machine:.*AArch64"
+          readelf -d "$LIBNODE" | grep -E "SONAME.*libnode\.so"
+          echo "LIBNODE=$LIBNODE" >> "$GITHUB_ENV"
+
+      - name: Fetch node-pty source + Node headers
+        run: |
+          node scripts/fetch-node-pty-source.mjs \
+            --node "$NODE_VERSION" \
+            --node-pty "$NODE_PTY_VERSION" \
+            --out .dist/src
+          cat .dist/src/FETCH-METADATA.json
+
+      - name: Cross-compile libpty_node.so
+        run: |
+          scripts/build-pty-android.sh \
+            --node "$NODE_VERSION" \
+            --api "$ANDROID_API" \
+            --src .dist/src/node-pty \
+            --addon .dist/src/node-addon-api \
+            --headers .dist/src/node-headers/include/node \
+            --libnode "$LIBNODE" \
+            --ndk "$ANDROID_HOME/ndk/${NDK_VERSION}" \
+            --out build/out
+
+      - name: Verify build output
+        run: |
+          PTY=build/out/libpty_node.so
+          file "$PTY"
+          readelf -h "$PTY" | grep -E "Type:|Machine:"
+          # 本工程硬门禁：DT_NEEDED 必须含 libnode.so
+          readelf -d "$PTY" | grep -E "NEEDED"
+          readelf -d "$PTY" | grep -E "NEEDED.*libnode\.so"
+          # napi_* 必须是未定义引用（由已加载引擎运行期解析）
+          echo "--- undefined napi_* (sample) ---"
+          nm -D "$PTY" | grep ' U ' | grep -E 'napi_|node_' | head -10
+          nm -D "$PTY" | grep ' U ' | grep -q 'napi_'
+          # 16 KB 页对齐
+          if readelf -lW "$PTY" | awk '/LOAD/{print strtonum($NF)}' | grep -Evx '16384'; then
+            echo "ERROR: a LOAD segment is not 16 KB aligned" >&2; exit 1
+          fi
+          # 绝不能把引擎/C++ 运行时打进本件
+          test ! -e build/out/libnode.so
+          echo "--- BUILD-METADATA.txt ---"; cat build/out/BUILD-METADATA.txt
+
+      - name: Run provision gates
+        run: |
+          node tools/provision.mjs --inspect build/out/libpty_node.so \
+            --node "$NODE_VERSION" --abi arm64-v8a
+
+      - name: Package output
+        run: |
+          archive="node-pty-v${NODE_VERSION}-android-arm64-v8a.tar.gz"
+          cp .dist/src/FETCH-METADATA.json build/out/
+          tar -C build/out -czf "$archive" .
+          sha256sum "$archive" > "$archive.sha256"
+          echo "archive=$archive" >> "$GITHUB_ENV"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: node-pty-${{ env.NODE_VERSION }}-android-arm64-v8a
+          path: |
+            node-pty-v${{ env.NODE_VERSION }}-android-arm64-v8a.tar.gz
+            node-pty-v${{ env.NODE_VERSION }}-android-arm64-v8a.tar.gz.sha256
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRERELEASE: ${{ inputs.prerelease || false }}
+        run: |
+          archive="node-pty-v${NODE_VERSION}-android-arm64-v8a.tar.gz"
+          notes="Cross-compiled, stripped node-pty native addon (libpty_node.so) for Android arm64-v8a (API ${ANDROID_API}). Paired version-for-version with aosp-node-runtime v${NODE_VERSION} (NODE_MODULE_VERSION must match). DT_NEEDED libnode.so; the engine is link-time only and is NOT bundled — provide io.github.fellow99:node-runtime:${NODE_VERSION} at runtime. Upstream node-pty ${NODE_PTY_VERSION} source unmodified; built with NDK ${NDK_VERSION}."
+          preflag=(); [ "$PRERELEASE" = "true" ] && preflag=(--prerelease)
+          if gh release view "v${NODE_VERSION}" >/dev/null 2>&1; then
+            gh release upload "v${NODE_VERSION}" "$archive" "$archive.sha256" --clobber
+            if [ "$PRERELEASE" = "true" ]; then
+              gh release edit "v${NODE_VERSION}" --target "$GITHUB_SHA" --prerelease
+            else
+              gh release edit "v${NODE_VERSION}" --target "$GITHUB_SHA" --prerelease=false
+            fi
+          else
+            gh release create "v${NODE_VERSION}" \
+              "$archive" "$archive.sha256" \
+              --target "$GITHUB_SHA" \
+              --title "node-pty for Node.js v${NODE_VERSION} (Android arm64-v8a)" \
+              --notes "$notes" \
+              "${preflag[@]}"
+          fi

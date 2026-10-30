@@ -1,0 +1,60 @@
+{
+  "$comment": "PTY companion single source of truth: version mirrors the paired node-runtime. Binaries are NOT committed; CI builds libpty_node.so (.github/workflows/build-pty-android.yml) and tools/provision.mjs deploys it. See docs/000-工程规划.md.",
+  "active": {
+    "node": "24.22.1",
+    "abi": "arm64-v8a"
+  },
+  "releases": [
+    {
+      "node": "24.22.1",
+      "nodeAbi": 137,
+      "abi": "arm64-v8a",
+      "androidApi": 24,
+      "name": "libpty_node.so",
+      "size": 0,
+      "sha256": "",
+      "pairedRuntime": {
+        "coordinates": "io.github.fellow99:node-runtime:24.22.1",
+        "releaseTag": "v24.22.1",
+        "releaseArchive": "node-v24.22.1-android-arm64-v8a.tar.gz",
+        "libnodeSoname": "libnode.so"
+      },
+      "builtFrom": {
+        "nodePty": "node-pty@1.1.0 (npm, source unmodified; unix target src/unix/pty.cc)",
+        "nodeHeaders": "node-v24.22.1-headers.tar.gz (https://nodejs.org/dist/v24.22.1)",
+        "nodeAddonApi": "resolved from node-pty dependencies at fetch time",
+        "ndk": "r28c (28.2.13676358)",
+        "flags": "clang++ -std=gnu++17 -fPIC -shared -O2 -DNAPI_DISABLE_CPP_EXCEPTIONS -DNODE_ADDON_API_DISABLE_DEPRECATED -Wl,--no-as-needed -Wl,-l:libnode.so",
+        "stripped": "llvm-strip --strip-unneeded"
+      },
+      "gates": {
+        "eTypeEtDyn": true,
+        "ptInterp": 0,
+        "eMachineAArch64": true,
+        "neededLibnode": true,
+        "undefinedNapiResolvable": true,
+        "sha256Match": true,
+        "sizeMatch": true,
+        "pageAlign16k": true
+      },
+      "build": 0,
+      "release": {
+        "tag": "v24.22.1",
+        "url": "",
+        "archive": "node-pty-v24.22.1-android-arm64-v8a.tar.gz"
+      },
+      "mavenCentral": {
+        "coordinates": "io.github.fellow99:node-pty:24.22.1",
+        "published": false
+      },
+      "status": "draft"
+    }
+  ],
+  "matrix": {
+    "minSdk": 24,
+    "abi": [
+      "arm64-v8a"
+    ],
+    "note": "Companion to node-runtime; consumers MUST pair node-pty:<node> with node-runtime:<node> (identical NODE_MODULE_VERSION). Loaded from nativeLibraryDir via soname; do not dlopen from writable data dirs. The AAR bundles only libpty_node.so (libnode.so / libc++_shared.so are provided by node-runtime)."
+  }
+}
