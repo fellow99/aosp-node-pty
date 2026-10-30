@@ -169,7 +169,7 @@ function gates(buf, rel) {
   else add('⑥ SHA-256（draft 无锁值，仅记录）', true, sha256);
   if (expectSize) add('⑦ 大小与锁一致', buf.length === expectSize, `${buf.length} vs ${expectSize}`);
   else add('⑦ 大小（draft 无锁值，仅记录）', true, `${buf.length}`);
-  add('⑧ 16 KB 页对齐', minAlign >= 0x4000, `min LOAD align=0x${minAlign.toString(16)}（4 KB 产物在 16 KB 设备上会装不上）`);
+  add('⑧ 16 KB 页对齐', minAlign >= 0x4000, `min LOAD align=0x${minAlign.toString(16)}（小于 0x4000=16KB，在 16 KB 页设备上会装不上）`);
 
   const allow4k = process.argv.includes('--allow-page-align-4k');
   const gate8 = r.find((x) => x.id.startsWith('⑧'));

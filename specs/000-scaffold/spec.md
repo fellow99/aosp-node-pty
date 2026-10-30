@@ -90,13 +90,17 @@
 - FR-000-020：`scripts/fetch-node-pty-source.mjs` MUST 能下载指定 node-pty npm 包（不改源码）与
   对应版本 Node 头文件，并以参数/lock 固定版本。
 - FR-000-021：`scripts/build-pty-android.sh` MUST 用 NDK clang++ 交叉编译 `src/unix/pty.cc` 为
-  `libpty_node.so`，固化规划 §3.4 五条踩坑：
-  1. MUST NOT 定义 `NODE_ADDON_API_ENABLE_MAYBE`；
-  2. MUST 通过 `-Wl,--no-as-needed … -Wl,-l:libnode.so` 产生 `DT_NEEDED libnode.so`；
-  3. 输出 MUST 命名为 `libpty_node.so` 并放入 AAR `jni/arm64-v8a/`；
-  4. MUST 用与配对 runtime 同版本的 Node 头文件（NODE_MODULE_VERSION 一致）；
-  5. MUST NOT 链接 `-lutil`（bionic 无 libutil，forkpty/openpty 在 libc）。
-- FR-000-022：构建脚本 MUST 在编译后 `llvm-strip --strip-unneeded` 并产出元数据（size/sha256）。
+  `libpty_node.so`，以 node-pty 1.1.0 源码与规划 §3.4 为准，固化以下不可回归项：
+  1. 异常模型 MUST 跟随 node-pty 源码：其 `binding.gyp` 依赖 `node_addon_api_except`，故 MUST 使用
+     `-fexceptions -DNAPI_CPP_EXCEPTIONS`（`pty.cc` 为裸 `throw Napi::Error`）；MUST NOT 定义
+     `NODE_ADDON_API_ENABLE_MAYBE`，MUST NOT 定义 `NAPI_DISABLE_CPP_EXCEPTIONS`；
+  2. MUST 定义 `NODE_GYP_MODULE_NAME`（`pty.cc` 末尾 `NODE_API_MODULE(NODE_GYP_MODULE_NAME, init)` 依赖）；
+  3. MUST 通过 `-Wl,--no-as-needed … -Wl,-l:libnode.so` 产生 `DT_NEEDED libnode.so`；
+  4. 输出 MUST 命名为 `libpty_node.so` 并放入 AAR `jni/arm64-v8a/`；
+  5. MUST 用与配对 runtime 同版本的 Node 头文件（NODE_MODULE_VERSION 一致）；
+  6. MUST NOT 链接 `-lutil`（bionic 无 libutil，forkpty/openpty 在 libc）。
+- FR-000-022：构建脚本 MUST 在编译后 `llvm-strip --strip-unneeded` 并产出元数据（size/sha256）；
+  编译后 MUST 自检产物 `DT_NEEDED` 含 `libnode.so`，缺失即非零失败。
 - FR-000-023：脚本 MUST 接受 `--node / --api / --libnode / --out` 等参数，且在缺失 NDK/编译器时
   以非零码明确失败。
 

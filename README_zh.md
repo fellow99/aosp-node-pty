@@ -70,7 +70,7 @@ jni/arm64-v8a/libpty_node.so    # node-pty N-API 原生件（ET_DYN，无 PT_INT
    匹配版本的 `node-v<version>-headers.tar.gz` 与 `node-addon-api`。
 3. 经 [`scripts/build-pty-android.sh`](scripts/build-pty-android.sh) 用 Android NDK r28c 交叉编译
    `src/unix/pty.cc`：
-   - 不定义 `NODE_ADDON_API_ENABLE_MAYBE`；
+   - `-fexceptions -DNAPI_CPP_EXCEPTIONS`，与 node-pty 上游 `node_addon_api_except` 依赖一致（不用 `NAPI_DISABLE_CPP_EXCEPTIONS`，不定义 `NODE_ADDON_API_ENABLE_MAYBE`）；
    - `-Wl,--no-as-needed -l:libnode.so` 使产物登记 `DT_NEEDED libnode.so`；
    - 输出命名 `libpty_node.so`；不链 `-lutil`（bionic 在 libc 提供 `forkpty`）。
 4. `llvm-strip --strip-unneeded`，随后运行 ELF 门禁。

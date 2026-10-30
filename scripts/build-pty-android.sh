@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # scripts/build-pty-android.sh —— 交叉编译 node-pty 的 UNIX 目标为 Android arm64 libpty_node.so
 #
-# 固化 docs/000-工程规划.md §3.4 的五条踩坑（不是"注意事项"，是脚本本体）：
-#   1) 不定义 NODE_ADDON_API_ENABLE_MAYBE（node-pty 用 node_addon_api_except 变体）
+# 固化 docs/000-工程规划.md §3.4 的踩坑（不是"注意事项"，是脚本本体）：
+#   1) 异常模型跟随 node-pty 源码：其 binding.gyp 用 node_addon_api_except，
+#      故 -fexceptions + -DNAPI_CPP_EXCEPTIONS（pty.cc 裸 throw Napi::Error）；
+#      不定义 NODE_ADDON_API_ENABLE_MAYBE（node-pty 不用 Maybe API）。
 #   2) 必须产生 DT_NEEDED libnode.so：-Wl,--no-as-needed ... -Wl,-l:libnode.so
 #   3) 输出命名 libpty_node.so（Android 打包/System.loadLibrary 只认 lib*.so）
 #   4) Node 头文件版本必须 == 配对 runtime（NODE_MODULE_VERSION 一致）
@@ -90,12 +92,19 @@ RAW_OUT="$OUTPUT_DIR/libpty_node.so"
 
 # node-pty 的 UNIX 主体单文件：src/unix/pty.cc（Android 走 forkpty，不编 spawn-helper）。
 # include 顺序：node 头 → node-addon-api → node-pty 自身 src（pty.cc 内部相对 include 需要）。
-"$CLANGXX" -std=gnu++17 -fPIC -shared -O2 \
+#
+# 异常模型（以 node-pty 1.1.0 源码为准，勿改）：其 binding.gyp 依赖
+# node_addon_api_except → 定义 NAPI_CPP_EXCEPTIONS，pty.cc 内为裸 `throw Napi::Error`。
+# 因此必须 -fexceptions + -DNAPI_CPP_EXCEPTIONS；禁用异常会导致编译失败/错误路径不抛。
+# 不定义 NODE_ADDON_API_ENABLE_MAYBE（node-pty 不用 Maybe API）。
+# NODE_GYP_MODULE_NAME：pty.cc 末尾 NODE_API_MODULE(NODE_GYP_MODULE_NAME, init) 所需模块名。
+"$CLANGXX" -std=gnu++17 -fPIC -shared -O2 -fexceptions \
   -I"$HEADERS_DIR" \
   -I"$ADDON_DIR" \
   -I"$SRC_DIR/src" \
-  -DNAPI_DISABLE_CPP_EXCEPTIONS \
-  -DNODE_ADDON_API_DISABLE_DEPRECATED \
+  -DNAPI_CPP_EXCEPTIONS \
+  -DNODE_GYP_MODULE_NAME=pty_node \
+  -DNAPI_VERSION=9 \
   -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 \
   "$SRC_DIR/src/unix/pty.cc" \
   -Wl,--no-as-needed \

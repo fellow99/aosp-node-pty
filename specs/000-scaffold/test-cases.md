@@ -37,7 +37,7 @@
 |---|---|---|
 | TC-30 | shell 语法 | `bash -n scripts/build-pty-android.sh` 退出 0 |
 | TC-31 | mjs 语法 | `node --check scripts/fetch-node-pty-source.mjs` 退出 0 |
-| TC-32 | 五坑固化 | grep：无 ENABLE_MAYBE；有 `--no-as-needed` 与 `-l:libnode.so`；输出名 libpty_node.so；无 `-lutil` |
+| TC-32 | 编译参数固化 | grep：有 `-fexceptions -DNAPI_CPP_EXCEPTIONS`；无 `NAPI_DISABLE_CPP_EXCEPTIONS`；无 `ENABLE_MAYBE`；有 `NODE_GYP_MODULE_NAME`；有 `--no-as-needed` 与 `-l:libnode.so`；输出名 libpty_node.so；无 `-lutil` |
 
 ## TC-CI 工作流
 
