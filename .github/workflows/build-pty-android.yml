@@ -1,6 +1,10 @@
 name: Build node-pty for Android
 
 on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+-*"
   workflow_dispatch:
     inputs:
       node_version:
@@ -32,13 +36,39 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
-      NODE_VERSION: ${{ inputs.node_version || '24.22.1' }}
-      NODE_PTY_VERSION: ${{ inputs.node_pty_version || '1.1.0' }}
-      ANDROID_API: ${{ inputs.android_api || '24' }}
+      NODE_VERSION: ${{ steps.ver.outputs.node }}
+      NODE_PTY_VERSION: ${{ steps.ver.outputs.pty }}
+      ANDROID_API: ${{ steps.ver.outputs.api }}
       NDK_VERSION: 28.2.13676358
       RUNTIME_REPO: fellow99/aosp-node-runtime
     steps:
       - uses: actions/checkout@v4
+
+      - name: Resolve version from tag or dispatch inputs
+        id: ver
+        env:
+          INPUT_NODE: ${{ inputs.node_version }}
+          INPUT_PTY: ${{ inputs.node_pty_version }}
+          INPUT_API: ${{ inputs.android_api }}
+          INPUT_PRE: ${{ inputs.prerelease }}
+          REF: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "push" && "$REF" == v* ]]; then
+            node="${REF#v}"
+            pty="1.1.0"; api="24"; pre=false
+            [[ "$node" == *-* ]] && pre=true
+          else
+            node="${INPUT_NODE:-24.22.1}"
+            pty="${INPUT_PTY:-1.1.0}"
+            api="${INPUT_API:-24}"
+            pre="${INPUT_PRE:-false}"
+          fi
+          echo "node=$node"; echo "pty=$pty"; echo "api=$api"; echo "pre=$pre"
+          echo "node=$node" >> "$GITHUB_OUTPUT"
+          echo "pty=$pty"   >> "$GITHUB_OUTPUT"
+          echo "api=$api"   >> "$GITHUB_OUTPUT"
+          echo "pre=$pre"   >> "$GITHUB_OUTPUT"
 
       - name: Install host dependencies
         run: |
@@ -144,7 +174,7 @@ jobs:
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-          PRERELEASE: ${{ inputs.prerelease || false }}
+          PRERELEASE: ${{ steps.ver.outputs.pre }}
         run: |
           archive="node-pty-v${NODE_VERSION}-android-arm64-v8a.tar.gz"
           notes="Cross-compiled, stripped node-pty native addon (libpty_node.so) for Android arm64-v8a (API ${ANDROID_API}). Paired version-for-version with aosp-node-runtime v${NODE_VERSION} (NODE_MODULE_VERSION must match). DT_NEEDED libnode.so; the engine is link-time only and is NOT bundled — provide io.github.fellow99:node-runtime:${NODE_VERSION} at runtime. Upstream node-pty ${NODE_PTY_VERSION} source unmodified; built with NDK ${NDK_VERSION}."
