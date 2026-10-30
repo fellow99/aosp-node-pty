@@ -127,7 +127,8 @@ jobs:
 
       - name: Cross-compile libpty_node.so
         run: |
-          scripts/build-pty-android.sh \
+          chmod +x scripts/build-pty-android.sh
+          bash scripts/build-pty-android.sh \
             --node "$NODE_VERSION" \
             --api "$ANDROID_API" \
             --src .dist/src/node-pty \
