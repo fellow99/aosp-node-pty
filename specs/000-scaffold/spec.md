@@ -119,16 +119,21 @@
 
 ### 3.5 GitHub Actions
 
-- FR-000-040：workflow 文件 MUST 为 `.github/workflows/build-pty-android.yml`，触发为
-  `workflow_dispatch`，入参含 `node_version`（默认 lock active）、`android_api`(24)、
-  `node_pty_version`、`prerelease`。
-- FR-000-041：CI MUST 安装 NDK r28c（28.2.13676358）与 host 工具。
-- FR-000-042：CI MUST 从 `aosp-node-runtime` 同版本 GitHub Release 资产取 `libnode.so` 仅用于链接；
-  取不到或版本不符 MUST 失败。
-- FR-000-043：CI MUST 下载同版本 Node 头文件 + node-pty npm 源 + node-addon-api，编译 → strip →
-  跑 provision 门禁 → 打包 `node-pty-v<node>-android-arm64-v8a.tar.gz`。
-- FR-000-044：CI MUST 上传构建产物并发布/更新 GitHub Release（tag `v<node>`，clobber 资产、
-  tag 固定到本次 commit、同步 prerelease）。
+- FR-000-040：workflow 文件 MUST 为 `.github/workflows/build-pty-android.yml`，支持**双通道触发**：
+  (a) push tag `v<x.y.z>[-*]`（版本从 tag 名剥 `v` 推导，打 tag 即发版）；(b) `workflow_dispatch`，
+  入参含 `node_version`（默认 24.22.1）、`node_pty_version`(1.1.0)、`android_api`(24)、`prerelease`。
+  版本解析 step MUST 以大写 `NODE_VERSION/NODE_PTY_VERSION/ANDROID_API/PRE` 写入 `$GITHUB_ENV`，
+  且 job 级 env MUST NOT 前向引用尚未执行的 `steps.*.outputs`（否则工作流加载即失败）。
+- FR-000-041：CI MUST 安装 NDK r28c（28.2.13676358）与 host 工具（curl/file/tar/binutils/unzip）。
+- FR-000-042：CI MUST 从 `aosp-node-runtime` 同版本**公开** GitHub Release 资产（匿名 `curl` 走
+  `browser_download_url`，不依赖跨仓 token）取 `libnode.so` 仅用于链接，并按 hash 自行比对其
+  `.sha256`（runtime 校验文件名带紧贴 `*`，不可直接 `sha256sum -c`）；取不到或版本不符 MUST 失败。
+- FR-000-043：CI MUST 下载同版本 Node 头文件 + node-pty@1.1.0 npm 源 + node-addon-api@7.1.1，
+  编译 → strip → verify（ET_DYN/AArch64/NEEDED libnode/未定义 napi/16K）→ 跑 provision 门禁 →
+  打包 `node-pty-v<node>-android-arm64-v8a.tar.gz`（含 libpty_node.so + 两份 metadata）。
+- FR-000-044：CI MUST 上传构建 artifact 并发布/更新 GitHub Release（tag `v<node>`，clobber 资产、
+  tag 固定到本次 commit、同步 prerelease）。CI 不直接回写仓库内 lock；首产 size/sha/gates/status
+  由发版者回写 `pty.lock.json`（M4 再评估自动化）。
 
 ### 3.6 卫生、许可与文档
 
@@ -202,3 +207,15 @@
 - **伴生工程**：[`aosp-node-runtime`](https://github.com/fellow99/aosp-node-runtime) `24.22.1`
   （提供链接期 `libnode.so` 与运行期引擎；运行期由消费方 APK 同时携带）。
 - **下游消费**：任意内嵌 Node 的 Android 工程（如 `aosp-node-bridge` 一线），按规划 §7 契约接入。
+
+## 9. As-Built 验收结果（2026-10-30）
+
+- 全部任务完成（见 [tasks.md](./tasks.md)，26/26）；本地静态/配置期验证与 CI 端到端均通过。
+- Code Review 修 2 个 Critical（异常宏模型改为 `-fexceptions -DNAPI_CPP_EXCEPTIONS`；补
+  `-DNODE_GYP_MODULE_NAME=pty_node`）+ 1 个 Minor。
+- CI：GitHub Actions run **`41027607245`** 全 14 步成功；Release **v24.22.1** 已发布（非 draft/prerelease）。
+- 产物：`libpty_node.so` 70,896 B（strip 前 96,848），sha256 `c65fd205…dfa54`；ELF64 AArch64
+  `ET_DYN` stripped；`DT_NEEDED` 含 `libnode.so`；`napi_*` 为未定义 `U`；16 KB 页对齐；无 `PT_INTERP`。
+- Release 包 `node-pty-v24.22.1-android-arm64-v8a.tar.gz`（sha `a8a9c0e4…de74b6`）含
+  `libpty_node.so` + `BUILD-METADATA.txt` + `FETCH-METADATA.json`，不含引擎/`libc++_shared.so`。
+- `pty.lock.json` 已回写真实值并置 `status=released`；Maven Central 未发布（`published=false`，M3）。

@@ -71,16 +71,20 @@ jni/arm64-v8a/libpty_node.so    # node-pty N-API 原生件（ET_DYN，无 PT_INT
 3. 经 [`scripts/build-pty-android.sh`](scripts/build-pty-android.sh) 用 Android NDK r28c 交叉编译
    `src/unix/pty.cc`：
    - `-fexceptions -DNAPI_CPP_EXCEPTIONS`，与 node-pty 上游 `node_addon_api_except` 依赖一致（不用 `NAPI_DISABLE_CPP_EXCEPTIONS`，不定义 `NODE_ADDON_API_ENABLE_MAYBE`）；
+   - `-DNODE_GYP_MODULE_NAME=pty_node`（`NODE_API_MODULE(NODE_GYP_MODULE_NAME, init)` 所需）；
    - `-Wl,--no-as-needed -l:libnode.so` 使产物登记 `DT_NEEDED libnode.so`；
    - 输出命名 `libpty_node.so`；不链 `-lutil`（bionic 在 libc 提供 `forkpty`）。
 4. `llvm-strip --strip-unneeded`，随后运行 ELF 门禁。
 5. 发布 `node-pty-v<version>-android-arm64-v8a.tar.gz` 到 GitHub Release `v<version>`。
 
-手动触发：
+工作流双通道触发：推送 tag `v<x.y.z>`（版本从 tag 名推导），或手动 `workflow_dispatch`。
 
 ```bash
+# 手动 dispatch（正常发版路径是推 tag）
 gh workflow run build-pty-android.yml -f node_version=24.22.1 -f node_pty_version=1.1.0 -f android_api=24
 ```
+
+最新 Release：**[v24.22.1](https://github.com/fellow99/aosp-node-pty/releases/tag/v24.22.1)**——`libpty_node.so`，strip 后 70,896 字节，SHA-256 `c65fd205…dfa54`，由 node-pty 1.1.0 / node-addon-api 7.1.1、NDK r28c 构建。
 
 ## 锁定与校验
 

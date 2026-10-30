@@ -43,10 +43,19 @@
 
 | ID | 用例 | 期望 |
 |---|---|---|
-| TC-40 | YAML 可解析 | 解析无异常；含 workflow_dispatch 与四个输入 |
-| TC-41 | 取配对引擎 | 步骤从 aosp-node-runtime v24.22.1 Release 取 libnode.so，失败即停 |
-| TC-42 | 门禁在 CI | 调 provision --inspect/--check，不过则失败 |
+| TC-40 | YAML 可解析 | 解析无异常；含 tag `v*` push 与 workflow_dispatch 双触发，四个 dispatch 输入齐全 |
+| TC-41 | 取配对引擎 | 步骤匿名 curl 从 aosp-node-runtime v24.22.1 **public** Release 取 `bin/arm64-v8a/libnode.so`，按 hash 校 sha，失败即停 |
+| TC-42 | 门禁在 CI | 调 provision --inspect，不过则失败 |
 | TC-43 | 发布 | 产出 `node-pty-v24.22.1-android-arm64-v8a.tar.gz` 并发 Release v24.22.1 |
+
+## TC-CI 工作流 —— 实测结果（run 41027607245，全绿）
+
+| ID | 结果 | 证据 |
+|---|---|---|
+| TC-40 | ✅ | 版本解析 step 写大写变量到 `$GITHUB_ENV`；job env 不前向引用 step outputs |
+| TC-41 | ✅ | 匿名 curl 下载成功；sha 取 hash 自行比对（runtime 文件名带紧贴 `*`，不能 `sha256sum -c`） |
+| TC-42 | ✅ | provision 8 项门禁全过 |
+| TC-43 | ✅ | Release v24.22.1 含 tar.gz(29,932B)+.sha256；artifact 同名上传 |
 
 ## TC-E2E 端到端（打 tag 后）
 
@@ -55,3 +64,11 @@
 | TC-50 | tag 触发 | push tag v24.22.1 后 workflow 启动 |
 | TC-51 | 全链路 | 取引擎→编译→strip→全门禁过→产物上传→Release 可见 |
 | TC-52 | 回归 | 若失败，修复后重跑直至绿；产物 NEEDED 含 libnode.so |
+
+## TC-E2E —— 实测结果
+
+| ID | 结果 | 证据 |
+|---|---|---|
+| TC-50 | ✅ | 强推 tag 到修复提交即触发 run 41027607245（event=push, ref=v24.22.1） |
+| TC-51 | ✅ | 14 步全成功；产物 ELF64 AArch64 ET_DYN stripped，`DT_NEEDED` 含 libnode.so，`napi_*` 为 U，16KB 对齐 |
+| TC-52 | ✅ | 历经 5 轮修复（job env 前向引用 / gh 跨仓权限 / sha 文件名 / 变量大小写 / exit126 可执行位）后转绿 |

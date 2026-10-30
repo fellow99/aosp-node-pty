@@ -2,8 +2,9 @@
 
 > 模块：000-scaffold
 > 对应规格：[spec.md](./spec.md)
-> 最后更新：2026-10-30
-> 范围：M1 骨架完整（脚本可运行、workflow 完整），不要求本地产出 `.so`；交叉编译正确性在 CI 验证。
+> 最后更新：2026-10-30（实现已落地并发布 Release v24.22.1）
+> 范围：M1 骨架完整 + M2 CI/Release 已完成；交叉编译正确性已在 CI（Ubuntu + NDK r28c）验证。
+> 结论：GitHub Actions run `41027607245` 全 14 步成功，产出 `libpty_node.so` 并发布 Release。
 
 ## 1. 技术上下文
 
@@ -69,27 +70,37 @@ CI 只信任来自 `aosp-node-runtime` 同版本 Release 的资产；缺失/不�
 
 根：`{ $comment, active:{node,abi}, releases:[ReleaseRecord], matrix:{minSdk,abi,note} }`。
 
-`ReleaseRecord`（实现 FR-000-011/012）：
+`ReleaseRecord`（实现 FR-000-011/012，以下为首个已发布条目的真实值）：
 
 ```jsonc
 {
   "node": "24.22.1", "nodeAbi": 137, "abi": "arm64-v8a", "androidApi": 24,
-  "name": "libpty_node.so", "size": 0, "sha256": "",
+  "name": "libpty_node.so", "size": 70896, "sizeUnstripped": 96848,
+  "sha256": "c65fd205604d0ed6d1d38746491d42c2d459de63b0157ba3673867aaaf9dfa54",
   "pairedRuntime": { "coordinates": "io.github.fellow99:node-runtime:24.22.1",
-                     "releaseTag": "v24.22.1", "libnodeSoname": "libnode.so" },
-  "builtFrom": { "nodePty": "...", "nodeHeaders": "...", "nodeAddonApi": "...",
-                 "ndk": "r28c (28.2.13676358)", "flags": "...", "stripped": "llvm-strip --strip-unneeded" },
+                     "releaseTag": "v24.22.1",
+                     "releaseArchive": "node-v24.22.1-android-arm64-v8a.tar.gz",
+                     "libnodeSoname": "libnode.so" },
+  "builtFrom": { "nodePty": "node-pty@1.1.0 (source unmodified)",
+                 "nodeHeaders": "node-v24.22.1-headers.tar.gz",
+                 "nodeAddonApi": "node-addon-api@7.1.1", "ndk": "r28c (28.2.13676358)",
+                 "flags": "clang++ -std=gnu++17 -fPIC -shared -O2 -fexceptions -DNAPI_CPP_EXCEPTIONS -DNODE_GYP_MODULE_NAME=pty_node -DNAPI_VERSION=9 -Wl,--no-as-needed -Wl,-l:libnode.so (no -lutil)",
+                 "stripped": "llvm-strip --strip-unneeded" },
   "gates": { "eTypeEtDyn": true, "ptInterp": 0, "eMachineAArch64": true,
              "neededLibnode": true, "undefinedNapiResolvable": true,
              "sha256Match": true, "sizeMatch": true, "pageAlign16k": true },
-  "build": 0,
-  "release": { "tag": "v24.22.1", "url": "", "archive": "node-pty-v24.22.1-android-arm64-v8a.tar.gz" },
+  "build": 41027607245,
+  "release": { "tag": "v24.22.1", "url": "https://github.com/fellow99/aosp-node-pty/releases/tag/v24.22.1",
+               "archive": "node-pty-v24.22.1-android-arm64-v8a.tar.gz",
+               "archiveSha256": "a8a9c0e46e7d606d90a7b07f90f21c7b461e148e14393316e584958295de74b6" },
   "mavenCentral": { "coordinates": "io.github.fellow99:node-pty:24.22.1", "published": false },
-  "status": "draft"
+  "status": "released"
 }
 ```
 
-> draft 阶段 `size=0`、`sha256=""`；CI 首次成功后回写真实值并把门禁/状态置真。
+> Code Review 纠正的两个关键点：node-pty 1.1.0 的 `binding.gyp` 依赖 `node_addon_api_except`
+> （`NAPI_CPP_EXCEPTIONS`，源码裸 `throw`），故用 `-fexceptions -DNAPI_CPP_EXCEPTIONS`，**不能**
+> 用 `-DNAPI_DISABLE_CPP_EXCEPTIONS`；并需 `-DNODE_GYP_MODULE_NAME=pty_node`。详见 §9。
 
 ## 5. 接口契约
 
@@ -111,9 +122,12 @@ CI 只信任来自 `aosp-node-runtime` 同版本 Release 的资产；缺失/不�
 
 拉取 node-pty npm tarball（不改源）与 node 头文件，校验版本，输出到工作目录。
 
-### 5.4 workflow 输入（提供给 CI 使用者）
+### 5.4 workflow 输入/触发（提供给 CI 使用者）
 
-`node_version`(默认 24.22.1)、`android_api`(24)、`node_pty_version`(固定上游钉选)、`prerelease`。
+- 触发：`push.tags: v<x.y.z>[-*]`（版本从 tag 名推导，打 tag 即发版）+ `workflow_dispatch`。
+- dispatch 输入：`node_version`(24.22.1)、`node_pty_version`(1.1.0)、`android_api`(24)、`prerelease`。
+- 版本解析 step 统一导出大写 `NODE_VERSION/NODE_PTY_VERSION/ANDROID_API/PRE` 到 `$GITHUB_ENV`
+  （job 级 env 不能前向引用尚未执行的 `steps.*.outputs`，否则工作流加载即失败）。
 
 ## 6. 实现策略
 
@@ -154,14 +168,24 @@ aosp-node-pty/
 - build 脚本：`set -euo pipefail`；缺 NDK/clang/--libnode/源文件即非零退出并打印原因。
 - CI：任一步骤失败即整体失败；Release 已存在则 clobber 资产并把 tag 钉到本次 commit。
 
-## 7. 测试考量（000 可在本地/CI 验证）
+## 7. 测试与验证结果（已执行）
 
-- Gradle 配置期：`gradle projects` / `help` 在无 `.so` 下成功（FR-000-005）。
-- provision 负向：构造/取一个无 `DT_NEEDED libnode.so` 的 ELF，断言退出码 2。
-- provision 正向逻辑：用任意 AArch64 ET_DYN 小样本验证解析分支（真正 pty `.so` 由 CI 产出后回归）。
-- `node --check` 对两个 `.mjs` 做语法校验；`bash -n` 校验 shell 脚本。
-- workflow YAML 结构与输入完整性静态检查。
-- 端到端：打 tag 触发 CI，观察是否取到 runtime `libnode.so`、编译过门、发布 Release。
+本地（Windows，NDK r27，不产 `.so`）：
+- `gradle projects` / 配置期在无 `.so` 下 BUILD SUCCESSFUL，`:node-pty` 在位，version=24.22.1。
+- `node --check` 两个 `.mjs`；`bash -n` shell 脚本；`pty.lock.json` JSON 合法；workflow YAML 可解析。
+- provision 负向样本（取 runtime 的 `libnode.so`）gate④⑤ 失败、退出码 2；`--out` 拒绝=2；
+  用法错误=1；未知 release=1；空 `--check`=2。
+- `.gitignore` 正确忽略 `jniLibs/**/*.so`。
+
+CI（Ubuntu 24.04 + NDK r28c，端到端）：
+- 最终 run `41027607245` 全 14 步成功。
+- 产物 `file/readelf/nm` 验证：ELF64 AArch64 `ET_DYN` stripped；`DT_NEEDED` 含 `libnode.so`；
+  `napi_*` 为未定义 `U`；16KB 对齐；`provision --inspect` 全门禁过。
+- Release `v24.22.1` 发布 tar.gz + sha256；下载回算 sha 一致，包内仅 `libpty_node.so` +
+  两份 metadata。
+
+Code Review（requesting + receiving）：以 node-pty@1.1.0 npm 实际源码为证据，修 2 个 Critical
+（异常宏模型、模块注册宏）+ 1 个 Minor（门禁⑧失败文案）。
 
 ## 8. 文件清单
 
@@ -180,3 +204,16 @@ aosp-node-pty/
 | `.gitignore` | 二进制/构建产物忽略 | 050 |
 | `node-pty/THIRD-PARTY-NOTICES.md` | 第三方许可 | 051 |
 | `README.md`/`README_zh.md` | 消费契约与构建说明 | 052 |
+
+## 9. 执行结果与 CI 联调记录
+
+- **最终状态**：M1 + M2 完成，Release `v24.22.1` 已发布（run `41027607245`）；M3 Maven、M4 跟随机制未做。
+- **产物**：`libpty_node.so` 70,896B（strip 前 96,848B），sha `c65fd205…dfa54`；Release 包
+  sha `a8a9c0e4…de74b6`。
+- **CI 五连修**（看真实日志定位）：
+  1. job 级 env 前向引用 step outputs（加载期失败）→ 版本解析写 `$GITHUB_ENV`；
+  2. 跨仓 `gh release download` 无权限 → runtime public，改匿名 `curl`；
+  3. runtime `.sha256` 文件名带紧贴 `*`，`sha256sum -c` 失败 → 取 hash 自行比对；
+  4. `NODE_VERSION: unbound variable`（导出名小写）→ 统一大写；
+  5. 脚本无可执行位 `exit 126` → `bash scripts/...` + `git update-index --chmod=+x`。
+- 完整记录见 `logs/20261030-1/DEV_CHECKLIST.md` 与 `docs/000-工程规划.md` §11。

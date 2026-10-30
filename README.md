@@ -61,16 +61,20 @@ The binary is **not committed** and is never built by hand. [`build-pty-android.
 2. Fetch the unmodified `node-pty` npm source, the matching `node-v<version>-headers.tar.gz`, and `node-addon-api` via [`scripts/fetch-node-pty-source.mjs`](scripts/fetch-node-pty-source.mjs).
 3. Cross-compile `src/unix/pty.cc` with Android NDK r28c via [`scripts/build-pty-android.sh`](scripts/build-pty-android.sh):
    - `-fexceptions -DNAPI_CPP_EXCEPTIONS` matching node-pty's upstream `node_addon_api_except` dependency (no `NAPI_DISABLE_CPP_EXCEPTIONS`, no `NODE_ADDON_API_ENABLE_MAYBE`);
+   - `-DNODE_GYP_MODULE_NAME=pty_node` (required by `NODE_API_MODULE(NODE_GYP_MODULE_NAME, init)`);
    - `-Wl,--no-as-needed -l:libnode.so` so the product records `DT_NEEDED libnode.so`,
    - output named `libpty_node.so`, no `-lutil` (bionic provides `forkpty` in libc).
 4. `llvm-strip --strip-unneeded`, then run the ELF gates.
 5. Publish `node-pty-v<version>-android-arm64-v8a.tar.gz` to the GitHub Release `v<version>`.
 
-Trigger a build manually:
+The workflow triggers two ways: pushing a tag `v<x.y.z>` (the version is derived from the tag name) or a manual `workflow_dispatch`.
 
 ```bash
+# manual dispatch (tag push is the normal release path)
 gh workflow run build-pty-android.yml -f node_version=24.22.1 -f node_pty_version=1.1.0 -f android_api=24
 ```
+
+Latest release: **[v24.22.1](https://github.com/fellow99/aosp-node-pty/releases/tag/v24.22.1)** — `libpty_node.so`, 70,896 bytes (stripped), SHA-256 `c65fd205…dfa54`, built from node-pty 1.1.0 / node-addon-api 7.1.1 with NDK r28c.
 
 ## Locking and verification
 
