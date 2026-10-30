@@ -12,7 +12,22 @@
 - [x] T7 specs + logs
 - [x] T8 校验（gradle 配置期 / node --check / bash -n / provision 负向样本）
 - [x] Code review + 修复
-- [ ] 提交 + tag v24.22.1 触发 CI + 观察/修复
+- [x] 提交 + tag v24.22.1 触发 CI + 观察/修复
+
+## CI 联调结果（tag v24.22.1，最终绿 run=41027607245）
+逐次失败→定位→修复（均看真实日志，非猜）：
+1. 加载期失败（job env 前向引用 steps.ver.outputs）→ 改为版本解析 step 写 $GITHUB_ENV。
+2. step7 跨仓 `gh release download` 无 token 权限 → runtime 为 public，改匿名 curl 拉 browser_download_url。
+3. step7 sha256sum -c：runtime 的 .sha256 文件名字段带紧贴的 '*' → 取 hash 自行比对。
+4. step7 `NODE_VERSION: unbound variable`：$GITHUB_ENV 写成小写 node/pty/api → 统一大写 NODE_VERSION 等。
+5. step9 exit 126 Permission denied（脚本未加可执行位）→ CI `bash scripts/...` 且 git update-index --chmod=+x。
+最终产物（全部门禁过）：
+- ELF64 AArch64 ET_DYN, stripped；DT_NEEDED 含 libnode.so（另有 libc++_shared/libm/libdl/libc）。
+- napi_* 为未定义 U 符号（装载期由引擎解析）；16KB 页对齐；无 PT_INTERP。
+- libpty_node.so size=70896（unstripped 96848）sha256=c65fd205…dfa54；NDK 28.2.13676358；node-addon-api 7.1.1。
+- GitHub Release v24.22.1（非 draft/prerelease）：tar.gz + .sha256（包 sha a8a9c0e4…），内容仅
+  libpty_node.so + BUILD-METADATA.txt + FETCH-METADATA.json；artifact 同名在 Actions。
+- 已把产物事实回写 pty.lock.json（status=released）。Maven Central 未发布（本需求不涉及，published=false）。
 
 ## Code Review 结论（d152f43..HEAD，2026-10-30）
 以 node-pty@1.1.0 实际 npm 源为证据核对：

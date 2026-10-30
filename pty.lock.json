@@ -11,8 +11,9 @@
       "abi": "arm64-v8a",
       "androidApi": 24,
       "name": "libpty_node.so",
-      "size": 0,
-      "sha256": "",
+      "size": 70896,
+      "sizeUnstripped": 96848,
+      "sha256": "c65fd205604d0ed6d1d38746491d42c2d459de63b0157ba3673867aaaf9dfa54",
       "pairedRuntime": {
         "coordinates": "io.github.fellow99:node-runtime:24.22.1",
         "releaseTag": "v24.22.1",
@@ -22,9 +23,9 @@
       "builtFrom": {
         "nodePty": "node-pty@1.1.0 (npm, source unmodified; unix target src/unix/pty.cc)",
         "nodeHeaders": "node-v24.22.1-headers.tar.gz (https://nodejs.org/dist/v24.22.1)",
-        "nodeAddonApi": "resolved from node-pty dependencies at fetch time",
+        "nodeAddonApi": "node-addon-api@7.1.1 (resolved from node-pty dependency ^7.1.0)",
         "ndk": "r28c (28.2.13676358)",
-        "flags": "clang++ -std=gnu++17 -fPIC -shared -O2 -DNAPI_DISABLE_CPP_EXCEPTIONS -DNODE_ADDON_API_DISABLE_DEPRECATED -Wl,--no-as-needed -Wl,-l:libnode.so",
+        "flags": "clang++ -std=gnu++17 -fPIC -shared -O2 -fexceptions -DNAPI_CPP_EXCEPTIONS -DNODE_GYP_MODULE_NAME=pty_node -DNAPI_VERSION=9 -Wl,--no-as-needed -Wl,-l:libnode.so (no -lutil)",
         "stripped": "llvm-strip --strip-unneeded"
       },
       "gates": {
@@ -37,17 +38,18 @@
         "sizeMatch": true,
         "pageAlign16k": true
       },
-      "build": 0,
+      "build": 41027607245,
       "release": {
         "tag": "v24.22.1",
-        "url": "",
-        "archive": "node-pty-v24.22.1-android-arm64-v8a.tar.gz"
+        "url": "https://github.com/fellow99/aosp-node-pty/releases/tag/v24.22.1",
+        "archive": "node-pty-v24.22.1-android-arm64-v8a.tar.gz",
+        "archiveSha256": "a8a9c0e46e7d606d90a7b07f90f21c7b461e148e14393316e584958295de74b6"
       },
       "mavenCentral": {
         "coordinates": "io.github.fellow99:node-pty:24.22.1",
         "published": false
       },
-      "status": "draft"
+      "status": "released"
     }
   ],
   "matrix": {
