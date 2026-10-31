@@ -50,6 +50,42 @@
         "published": false
       },
       "status": "released"
+    },
+    {
+      "node": "26.13.0",
+      "nodeAbi": 147,
+      "abi": "arm64-v8a",
+      "androidApi": 24,
+      "name": "libpty_node.so",
+      "pairedRuntime": {
+        "coordinates": "io.github.fellow99:node-runtime:26.13.0",
+        "releaseTag": "v26.13.0",
+        "releaseArchive": "node-v26.13.0-android-arm64-v8a.tar.gz",
+        "libnodeSoname": "libnode.so"
+      },
+      "builtFrom": {
+        "nodePty": "node-pty@1.1.0 (npm, source unmodified; unix target src/unix/pty.cc)",
+        "nodeHeaders": "node-v26.13.0-headers.tar.gz (https://nodejs.org/dist/v26.13.0), sha256 9b3fad89be6bb3ffc5057afcbceaf58a9489d67846fdb243eaf44947167a1a1b",
+        "nodeAddonApi": "node-addon-api@7.1.0 (resolved from node-pty dependency ^7.1.0)",
+        "ndk": "r30 (30.0.16248370)",
+        "flags": "clang++ -std=gnu++17 -fPIC -shared -O2 -fexceptions -DNAPI_CPP_EXCEPTIONS -DNODE_GYP_MODULE_NAME=pty_node -DNAPI_VERSION=9 -Wl,--no-as-needed -Wl,-l:libnode.so (no -lutil)",
+        "stripped": "llvm-strip --strip-unneeded"
+      },
+      "gates": {
+        "eTypeEtDyn": true,
+        "ptInterp": 0,
+        "eMachineAArch64": true,
+        "neededLibnode": true,
+        "undefinedNapiResolvable": true,
+        "sha256Match": false,
+        "sizeMatch": false,
+        "pageAlign16k": true
+      },
+      "mavenCentral": {
+        "coordinates": "io.github.fellow99:node-pty:26.13.0",
+        "published": false
+      },
+      "status": "draft"
     }
   ],
   "matrix": {
