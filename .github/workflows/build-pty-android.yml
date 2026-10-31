@@ -36,7 +36,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
-      NDK_VERSION: 28.2.13676358
+      # Align with aosp-node-runtime: Node 26+ needs clang >= 19.1; NDK r30 ships
+      # clang 21.0.0 (r28 ships clang 19.0.1). Keeps addon and engine on one NDK.
+      NDK_VERSION: 30.0.16248370
       RUNTIME_REPO: fellow99/aosp-node-runtime
     steps:
       - uses: actions/checkout@v4
