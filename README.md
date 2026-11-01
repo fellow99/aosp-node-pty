@@ -12,16 +12,26 @@ The artifact version is **always identical** to the paired Node.js / `aosp-node-
 
 | Runtime | PTY (this repo) |
 |---|---|
-| `io.github.fellow99:node-runtime:24.22.1` | `io.github.fellow99:node-pty:24.22.1` |
+| `io.github.fellow99:node-runtime:26.13.0` | `io.github.fellow99:node-pty:26.13.0` |
 
-Cross-major compatibility is explicitly **not** supported (NODE_MODULE_VERSION differs). The two dependencies MUST resolve to the exact same version. Current release: `24.22.1` (NODE_MODULE_VERSION 137).
+Cross-major compatibility is explicitly **not** supported (NODE_MODULE_VERSION differs). The two dependencies MUST resolve to the exact same version. Current release: `26.13.0` (NODE_MODULE_VERSION 147).
+
+### Releases — Maven Central (`io.github.fellow99:node-pty`)
+
+> ⚠️ **AARCH64 (arm64-v8a) only** — no x86 / x86_64 / arm32 artifacts.
+
+| Version | OS | Arch | Link | Paired runtime |
+|---|---|---|---|---|
+| 22.23.4 | Android | arm64-v8a | https://repo1.maven.org/maven2/io/github/fellow99/node-pty/22.23.4/ | `node-runtime:22.23.4` (ABI 127) |
+| 24.22.1 | Android | arm64-v8a | https://repo1.maven.org/maven2/io/github/fellow99/node-pty/24.22.1/ | `node-runtime:24.22.1` (ABI 137) |
+| 26.13.0 | Android | arm64-v8a | https://repo1.maven.org/maven2/io/github/fellow99/node-pty/26.13.0/ | `node-runtime:26.13.0` (ABI 147) |
 
 ## Usage
 
 ```kotlin
 // build.gradle.kts
 dependencies {
-    val nodeVer = "24.22.1" // runtime and pty MUST be identical
+    val nodeVer = "26.13.0" // runtime and pty MUST be identical
     runtimeOnly("io.github.fellow99:node-runtime:$nodeVer")
     runtimeOnly("io.github.fellow99:node-pty:$nodeVer")
 }
@@ -71,10 +81,10 @@ The workflow triggers two ways: pushing a tag `v<x.y.z>` (the version is derived
 
 ```bash
 # manual dispatch (tag push is the normal release path)
-gh workflow run build-pty-android.yml -f node_version=24.22.1 -f node_pty_version=1.1.0 -f android_api=24
+gh workflow run build-pty-android.yml -f node_version=26.13.0 -f node_pty_version=1.1.0 -f android_api=24
 ```
 
-Latest release: **[v24.22.1](https://github.com/fellow99/aosp-node-pty/releases/tag/v24.22.1)** — `libpty_node.so`, 70,896 bytes (stripped), SHA-256 `c65fd205…dfa54`, built from node-pty 1.1.0 / node-addon-api 7.1.1 with NDK r28c.
+Latest release: **[v26.13.0](https://github.com/fellow99/aosp-node-pty/releases/tag/v26.13.0)** — `libpty_node.so`, 71,120 bytes (stripped), SHA-256 `7f514ee5…5220`, built from node-pty 1.1.0 / node-addon-api 7.1.0 with NDK r30.
 
 ## Locking and verification
 

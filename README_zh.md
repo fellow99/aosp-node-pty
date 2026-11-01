@@ -16,17 +16,27 @@
 
 | 运行时 | pty（本仓） |
 |---|---|
-| `io.github.fellow99:node-runtime:24.22.1` | `io.github.fellow99:node-pty:24.22.1` |
+| `io.github.fellow99:node-runtime:26.13.0` | `io.github.fellow99:node-pty:26.13.0` |
 
 明确**不保证**跨 Node 大版本兼容（NODE_MODULE_VERSION 不同）。两个依赖必须解析到完全相同的版本。
-当前版本：`24.22.1`（NODE_MODULE_VERSION 137）。
+当前版本：`26.13.0`（NODE_MODULE_VERSION 147）。
+
+### 发布版本 —— Maven Central（`io.github.fellow99:node-pty`）
+
+> ⚠️ **只发布 AArch64（arm64-v8a）一个架构**——无 x86 / x86_64 / arm32 包。
+
+| 版本 | 操作系统 | 架构 | 链接 | 配对运行时 |
+|---|---|---|---|---|
+| 22.23.4 | Android | arm64-v8a | https://repo1.maven.org/maven2/io/github/fellow99/node-pty/22.23.4/ | `node-runtime:22.23.4`（ABI 127） |
+| 24.22.1 | Android | arm64-v8a | https://repo1.maven.org/maven2/io/github/fellow99/node-pty/24.22.1/ | `node-runtime:24.22.1`（ABI 137） |
+| 26.13.0 | Android | arm64-v8a | https://repo1.maven.org/maven2/io/github/fellow99/node-pty/26.13.0/ | `node-runtime:26.13.0`（ABI 147） |
 
 ## 用法
 
 ```kotlin
 // build.gradle.kts
 dependencies {
-    val nodeVer = "24.22.1" // runtime 与 pty 必须同版本
+    val nodeVer = "26.13.0" // runtime 与 pty 必须同版本
     runtimeOnly("io.github.fellow99:node-runtime:$nodeVer")
     runtimeOnly("io.github.fellow99:node-pty:$nodeVer")
 }
@@ -81,10 +91,10 @@ jni/arm64-v8a/libpty_node.so    # node-pty N-API 原生件（ET_DYN，无 PT_INT
 
 ```bash
 # 手动 dispatch（正常发版路径是推 tag）
-gh workflow run build-pty-android.yml -f node_version=24.22.1 -f node_pty_version=1.1.0 -f android_api=24
+gh workflow run build-pty-android.yml -f node_version=26.13.0 -f node_pty_version=1.1.0 -f android_api=24
 ```
 
-最新 Release：**[v24.22.1](https://github.com/fellow99/aosp-node-pty/releases/tag/v24.22.1)**——`libpty_node.so`，strip 后 70,896 字节，SHA-256 `c65fd205…dfa54`，由 node-pty 1.1.0 / node-addon-api 7.1.1、NDK r28c 构建。
+最新 Release：**[v26.13.0](https://github.com/fellow99/aosp-node-pty/releases/tag/v26.13.0)**——`libpty_node.so`，strip 后 71,120 字节，SHA-256 `7f514ee5…5220`，由 node-pty 1.1.0 / node-addon-api 7.1.0、NDK r30 构建。
 
 ## 锁定与校验
 
