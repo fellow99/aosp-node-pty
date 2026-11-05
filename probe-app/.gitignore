@@ -1,0 +1,6 @@
+.gradle/
+build/
+local.properties
+
+# 载荷 .so 不入库（Release 投放件 / 下载件，C3 纪律；同 aosp-node-cli/probe-app）
+app/src/main/jniLibs/**/*.so

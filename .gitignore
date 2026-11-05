@@ -28,3 +28,6 @@ build/out/
 
 # OS
 .DS_Store
+
+# 探针测试报告留档（不入库）
+logs/
