@@ -35,6 +35,10 @@ android {
 }
 
 dependencies {
-    // 无外部依赖：载荷即 app/src/main/jniLibs/arm64-v8a/libpty_node.so
-    // （不捆绑 libnode.so / libc++_shared.so——配对 runtime 供给件，C2 纪律）
+    // 配对 runtime（C5 同版本配对 / pty.lock.json matrix 纪律）：
+    // addon = node 22.23.4（NODE_MODULE_VERSION 127，Release v22.23.4 投放，probe 常量 ARTIFACT_NODE）
+    // ⇄ node-runtime:22.23.4（libnode.so + libc++_shared.so）。
+    // 用 runtimeOnly：编译期不依赖引擎符号，仅打包进 APK——PRB-02 System.loadLibrary("node")
+    // 预载 + PRB-03 System.loadLibrary("pty_node") 解析 DT_NEEDED libnode.so 均需 libnode.so 在场。
+    runtimeOnly("io.github.fellow99:node-runtime:22.23.4")
 }
