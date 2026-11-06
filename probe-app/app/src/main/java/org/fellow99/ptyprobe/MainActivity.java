@@ -15,6 +15,8 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.nio.charset.StandardCharsets;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.security.MessageDigest;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -214,11 +216,40 @@ public class MainActivity extends Activity {
                     + "shaMatchLock=" + v.o.opt("shaMatchesLockRecord");
         }));
 
-        // PRB-05 spawn 回程 ⬜ 后续批次（不执行）
-        l.add(new Probe("PRB-05", "spawn 回程（sh -c 'echo PTY_ROUNDTRIP_OK'）⬜ 后续批次", 100, v -> {
-            v.o.put("implemented", false);
-            return "BLOCKED:⬜ 后续批次；前置：匹配 runtime（node " + ARTIFACT_NODE
-                    + " / NODE_MODULE_VERSION " + ARTIFACT_ABI + "）+ 消费方 node-pty JS 封装；本批不执行";
+        // PRB-05 spawn 回程：进程内 node::Start(bootstrap.js) 跑消费方 node-pty JS 封装，
+        // 物化 assets/node-pty → filesDir/node-pty（含 lib/ + package.json），并把
+        // libpty_node.so 复制为 build/Release/pty.node（node-pty 的 loadNativeModule 查找路径）；
+        // shim 启动前 setenv PTY_DIR/PTY_OUT；bootstrap 把 spawn 结果写入 PTY_OUT 供回读。
+        l.add(new Probe("PRB-05", "spawn 回程（node-pty JS → sh -c 'echo PTY_ROUNDTRIP_OK'）", 90_000, v -> {
+            String shimErr = ShimProbe.ensureLoaded();
+            if (shimErr != null) return "FAIL:shim 加载失败 " + shimErr;
+            try {
+                File ptyRoot = new File(getFilesDir(), "node-pty");
+                copyAssetTree(getAssets(), "node-pty", ptyRoot);
+                File br = new File(ptyRoot, "build" + File.separator + "Release");
+                if (!br.isDirectory() && !br.mkdirs()) return "FAIL:mkdir " + br;
+                File ptyNode = new File(br, "pty.node");
+                copyFile(soFile(), ptyNode);
+                v.o.put("ptyRoot", ptyRoot.getAbsolutePath());
+                v.o.put("ptyNodeSize", ptyNode.length());
+                v.o.put("nativePtyNodeSize", soFile().length());
+                File out = new File(getFilesDir(), "prb05-out.txt");
+                File boot = new File(ptyRoot, "bootstrap.js");
+                if (!boot.isFile()) return "FAIL:bootstrap.js 未物化";
+                v.o.put("bootstrap", boot.getAbsolutePath());
+                int rc = ShimProbe.runNodeScript(boot.getAbsolutePath(), out.getAbsolutePath(),
+                        ptyRoot.getAbsolutePath(), out.getAbsolutePath());
+                v.o.put("nodeStartRc", rc);
+                if (rc != 0) return "FAIL:node::Start 退出码 " + rc;
+                String content = out.isFile() ? new String(readAll(out), StandardCharsets.UTF_8) : "";
+                v.o.put("roundtripOut", content);
+                if (content.contains("PTY_ROUNDTRIP_OK")) {
+                    return "PASS-FACT|" + truncate(content.replace('\n', ' '), 180);
+                }
+                return "FAIL:PTY_OUT 无 PTY_ROUNDTRIP_OK：" + truncate(content, 300);
+            } catch (Throwable e) {
+                return "FAIL:thrown " + e.getClass().getSimpleName() + ": " + msg(e);
+            }
         }));
 
         return l;
@@ -327,7 +358,7 @@ public class MainActivity extends Activity {
                                 .put("node", ARTIFACT_NODE).put("nodeAbi", ARTIFACT_ABI)
                                 .put("sha256", ARTIFACT_SHA256).put("size", ARTIFACT_SIZE)));
                 out.put("probes", new JSONArray(report));
-                out.put("spawnRoundtrip", "BLOCKED(⬜ 后续批次): 前置=node-pty JS 封装（配对 runtime 26.13.0 已就绪）");
+                out.put("spawnRoundtrip", "IMPLEMENTED: 进程内 node::Start 跑消费方 node-pty JS（物化 assets + build/Release/pty.node）");
                 File f = new File(getFilesDir(), "probe-report.json");
                 try (FileOutputStream os = new FileOutputStream(f)) {
                     os.write(out.toString(2).getBytes(StandardCharsets.UTF_8));
@@ -339,6 +370,46 @@ public class MainActivity extends Activity {
         }).start();
     }
 
+
+    /** 递归物化 assets 子树到目标目录（空目录/叶子文件用 IO 流复制）。 */
+    private static void copyAssetTree(android.content.res.AssetManager am, String prefix, File dest)
+            throws Exception {
+        String[] kids = am.list(prefix);
+        if (kids == null || kids.length == 0) {
+            try (InputStream in = am.open(prefix);
+                 OutputStream out = new FileOutputStream(dest)) {
+                copyStream(in, out);
+            }
+            return;
+        }
+        if (!dest.isDirectory() && !dest.mkdirs()) {
+            throw new java.io.IOException("mkdir failed: " + dest);
+        }
+        for (String k : kids) {
+            copyAssetTree(am, prefix + "/" + k, new File(dest, k));
+        }
+    }
+
+    private static void copyFile(File src, File dst) throws Exception {
+        try (InputStream in = new FileInputStream(src);
+             OutputStream out = new FileOutputStream(dst)) {
+            copyStream(in, out);
+        }
+    }
+
+    private static void copyStream(InputStream in, OutputStream out) throws Exception {
+        byte[] buf = new byte[65536];
+        int r;
+        while ((r = in.read(buf)) > 0) out.write(buf, 0, r);
+    }
+
+    private static byte[] readAll(File f) throws Exception {
+        try (FileInputStream in = new FileInputStream(f)) {
+            java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+            copyStream(in, bos);
+            return bos.toByteArray();
+        }
+    }
     private static String truncate(String s, int n) {
         if (s == null) return "";
         return s.length() > n ? s.substring(0, n) + "…" : s;
