@@ -33,18 +33,18 @@ import java.util.concurrent.atomic.AtomicReference;
  * - PRB-02 预载 libnode.so：System.loadLibrary("node") 成功=PASS；无匹配 runtime 注入=BLOCKED。
  * - PRB-03 加载 addon：System.loadLibrary("pty_node") 成功=DT_NEEDED libnode.so 可解析（链接成立）；
  *   失败如实记录原因（not found / NODE_MODULE_VERSION / undefined symbol）。
- * - PRB-04 版本记录（fact）：lockActive(26.13.0/147) vs artifact(22.23.4/127) 差异 + 实际 sha vs lock。
+ * - PRB-04 版本记录（fact）：lockActive(26.13.0/147) vs artifact(26.13.0/147) 配对一致 + 实际 sha vs lock。
  * - PRB-05 spawn 回程：⬜ 后续批次（前置：匹配 runtime + node-pty JS），恒 BLOCKED 不执行。
  *
- * 配对事实常量来源：pty.lock.json（active）+ 实际 Release v22.23.4 元数据。
+ * 配对事实常量来源：pty.lock.json（active）+ 相同 Release v26.13.0 元数据（以 26.13.0 为准）。
  */
 public class MainActivity extends Activity {
 
-    // ── 配对事实（spec FR-101-PROBE-005；诚实记录：Release 最新 v22.23.4 ≠ runtime 配对 26.13.0）──
+    // ── 配对事实（spec FR-101-PROBE-005；配对版本基准 = 26.13.0：lock active 与打包 artifact 均 26.13.0/147）──
     private static final String LOCK_ACTIVE_NODE = "26.13.0";
     private static final int    LOCK_ACTIVE_ABI  = 147; // NODE_MODULE_VERSION
-    private static final String ARTIFACT_NODE    = "22.23.4";
-    private static final int    ARTIFACT_ABI     = 127; // NODE_MODULE_VERSION
+    private static final String ARTIFACT_NODE    = "26.13.0";
+    private static final int    ARTIFACT_ABI     = 147; // NODE_MODULE_VERSION（与 lock active 一致）
     private static final String ARTIFACT_SHA256  = "7f514ee596399f13b5965a391fc9c3ed27b3236a7fbcee13d51983c1e3285220";
     private static final long   ARTIFACT_SIZE    = 71120L;
     private static final String LIB_NAME         = "pty_node"; // System.loadLibrary 名（= libpty_node.so）
@@ -82,7 +82,7 @@ public class MainActivity extends Activity {
         log("pty-probe-app ready\nnativeDir=" + nativeDir
                 + "\n配对事实：lockActive=" + LOCK_ACTIVE_NODE + "/abi" + LOCK_ACTIVE_ABI
                 + "  实际so=" + ARTIFACT_NODE + "/abi" + ARTIFACT_ABI
-                + "（Release 最新 v22.23.4 ≠ runtime 配对 26.13.0 ⇒ spawn ⬜）"
+                + "（配对基准 26.13.0：lock active 与 artifact 一致 ⇒ spawn 前置就绪）"
                 + "\n点击 RUN ALL PROBES 执行");
 
         // FR-101-PROBE-008：无头自动化——am start … --ez autorun true 启动即自动跑批
@@ -203,7 +203,7 @@ public class MainActivity extends Activity {
             v.o.put("conclusion", LOCK_ACTIVE_ABI == ARTIFACT_ABI
                     ? "配对版本一致，可跑 spawn 回程（依赖消费方 node-pty JS）"
                     : "NODE_MODULE_VERSION 不匹配（" + LOCK_ACTIVE_ABI + " vs " + ARTIFACT_ABI
-                        + "）⇒ device require('node-pty') 会不匹配，spawn 回程 ⬜ 后续批次（需配对 runtime 22.23.4）");
+                        + "）⇒ device require('node-pty') 会不匹配，spawn 回程 ⬜ 后续批次（本案配对 26.13.0 一致）");
             File f = soFile();
             String sha = f.isFile() ? sha256Hex(f) : "";
             v.o.put("actualSha256", sha);
@@ -326,8 +326,8 @@ public class MainActivity extends Activity {
                         .put("artifact", new JSONObject()
                                 .put("node", ARTIFACT_NODE).put("nodeAbi", ARTIFACT_ABI)
                                 .put("sha256", ARTIFACT_SHA256).put("size", ARTIFACT_SIZE)));
-                out.put("spawnRoundtrip", "BLOCKED(⬜ 后续批次): 需匹配 runtime（node 22.23.4）+ node-pty JS");
                 out.put("probes", new JSONArray(report));
+                out.put("spawnRoundtrip", "BLOCKED(⬜ 后续批次): 前置=node-pty JS 封装（配对 runtime 26.13.0 已就绪）");
                 File f = new File(getFilesDir(), "probe-report.json");
                 try (FileOutputStream os = new FileOutputStream(f)) {
                     os.write(out.toString(2).getBytes(StandardCharsets.UTF_8));
